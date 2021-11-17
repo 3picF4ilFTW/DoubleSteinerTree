@@ -13,11 +13,11 @@ class Solution:
     
     
     def __str__(self):
-        return f"K1: {self.key_nodes_1}\nE1: {self.edges_1}\nK2: {self.key_nodes_2}\nE2: {self.edges_2}\nObj: {self.evaluate()}"
+        return f"K1: {self.key_nodes_1}\nE1: {self.edges_1}\nK2: {self.key_nodes_2}\nE2: {self.edges_2}\nObj: {self.weight_1} + {self.weight_2} - {-self.weight_s} = {self.evaluate()}"
         
     
     def evaluate(self):
-        return self.weight_1 + self.weight_2 - self.weight_s
+        return self.weight_1 + self.weight_2 + self.weight_s
 
 
     # NOTE: this does NOT create a deep copy!

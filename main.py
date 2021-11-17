@@ -30,8 +30,8 @@ def construction_heuristic(g : Graph):
     st_1 = nx.algorithms.approximation.steinertree.steiner_tree(g.graph, g.terminal_1, "weight_1")
     st_2 = nx.algorithms.approximation.steinertree.steiner_tree(g.graph, g.terminal_2, "weight_2")
     
-    s.key_nodes_1 = [n for n in st_1.nodes if st_1.degree[n] >= 3 and n not in g.terminal_1]
-    s.key_nodes_2 = [n for n in st_2.nodes if st_2.degree[n] >= 3 and n not in g.terminal_2]
+    s.key_nodes_1 = [n for n in st_1.nodes if st_1.degree(n) >= 3 and n not in g.terminal_1]
+    s.key_nodes_2 = [n for n in st_2.nodes if st_2.degree(n) >= 3 and n not in g.terminal_2]
     
     s.edges_1 = set(st_1.edges)
     s.edges_2 = set(st_2.edges)
@@ -64,26 +64,40 @@ def augment_distance_graph(g : Graph, dg : nx.Graph, n : int, weight : str):
         dg.add_edge(s, n, weight=length, path=path)
 
 
-def rebuild_steiner_tree(g : Graph, dg : nx.Graph, weight : str):
-    dc_edges = nx.algorithms.tree.mst.minimum_spanning_edges(dg, weight="weight", data=False)
+def rebuild_steiner_tree(g : Graph, dg : nx.Graph, tree : int):
+    mst = nx.algorithms.tree.mst.minimum_spanning_tree(dg, weight=f"weight_{tree}_mod")
     total_weight = 0
     
     edges = set()
     
+    # remove unnecessary nodes
+    terminals = getattr(g, f"terminal_{tree}")
+    changed = True
+    while changed:
+        changed = False
+        to_remove = []
+        
+        for n in mst.nodes:
+            if n not in terminals and mst.degree(n) == 1:
+                to_remove.append(n)
+                changed = True
+        
+        mst.remove_nodes_from(to_remove)
+    
     # translate distance graph edges to original graph edges and compute sum over undiscounted weights
-    # (TODO: could be changed to collect discounted weights and then correct based on shared edges --> slightly faster)
-    for (n1,n2) in edges:
+    # (TODO: could be changed to collect discounted weights and then correct based on shared edges --> slightly faster)    
+    for (n1,n2) in mst.edges():
         last_n = None
-        for n in dg.graph.get_edge_data(n1,n2)["path"]:
+        for n in dg.get_edge_data(n1,n2)["path"]:
             if last_n is None:
                 last_n = n
                 continue
             edges.add((last_n, n))
-            total_weight += g.graph.get_edge_data(last_n, n)[weight]
+            total_weight += g.graph.get_edge_data(last_n, n)[f"weight_{tree}"]
+            last_n = n
     
-    # TODO: we have to remove nodes of degree 1 other than terminals
-    
-    return edges, total_weight
+    # TODO: we could have introduced key-nodes which are not in the MST!!!
+    return edges, total_weight, [n for n in mst.nodes if mst.degree(n) >= 3 and n not in terminals]
 
 
 def compute_shared_edges(g : Graph, s : Solution):
@@ -100,7 +114,7 @@ def compute_add_keynode_next_neighbor(g : Graph, dg : Graph, ns : [int], s : Sol
         augment_distance_graph(g, dg, n, f"weight_{tree}_mod")
         
         # use new distance graph to build steiner tree and create new solution
-        edges, weight = rebuild_steiner_tree(g, dg, f"weight_{tree}")
+        edges, weight, key_nodes = rebuild_steiner_tree(g, dg, tree)
 
         new_s = copy(s)
         
@@ -116,8 +130,7 @@ def compute_add_keynode_next_neighbor(g : Graph, dg : Graph, ns : [int], s : Sol
         new_value = new_s.evaluate()
         
         if new_value < value:
-            # due to next-improvement we can just modify the reference
-            getattr(new_s, f"key_nodes_{tree}").append(n)
+            setattr(new_s, f"key_nodes_{tree}", key_nodes)
             return new_s, value        
         
         # reset the distance graph
@@ -135,7 +148,7 @@ def compute_remove_keynode_best_neighbor(g : Graph, dg : Graph, ns : [int], s : 
         dg_mod = nx.classes.function.subgraph_view(dg, filter_node=lambda ni: ni != n)
         
         # use new distance graph to build steiner tree and create new solution
-        edges, weight = rebuild_steiner_tree(g, dg, f"weight_{tree}")
+        edges, weight, key_nodes = rebuild_steiner_tree(g, dg, tree)
 
         new_s = copy(s)
         
@@ -151,9 +164,6 @@ def compute_remove_keynode_best_neighbor(g : Graph, dg : Graph, ns : [int], s : 
         new_value = new_s.evaluate()
         
         if new_value < best_value:
-            # due to best-improvement we must not modify the reference
-            key_nodes = getattr(new_s, f"key_nodes_{tree}").copy()
-            key_nodes.remove(n)
             setattr(new_s, f"key_nodes_{tree}", key_nodes)
             best_value = new_value
             best_solution = new_s
@@ -166,13 +176,13 @@ def vnd(g : Graph, s : Solution, v : int):
     value = v
     
     while True:
-        print(f"New best solution: {v}")
+        print(f"New best solution:\n{current}")
 
         start = time.process_time()        
         # discount edges that are already used
         for n1,n2,d in g.graph.edges.data():
-            d["weight_1_mod"] = (d["weight_1"] - g.gamma) if (n1,n2) in current.edges_2 else d["weight_1"]
-            d["weight_2_mod"] = (d["weight_2"] - g.gamma) if (n1,n2) in current.edges_1 else d["weight_2"]
+            d["weight_1_mod"] = (d["weight_1"] + g.gamma) if (n1,n2) in current.edges_2 else d["weight_1"]
+            d["weight_2_mod"] = (d["weight_2"] + g.gamma) if (n1,n2) in current.edges_1 else d["weight_2"]
 
         # compute the distance graph cores
         nodes_1 = g.terminal_1 + s.key_nodes_1
@@ -191,6 +201,11 @@ def vnd(g : Graph, s : Solution, v : int):
         remove_nodes_1 = current.key_nodes_1
         remove_nodes_2 = current.key_nodes_2
         
+        print(add_nodes_1)
+        print(add_nodes_2)
+        print(remove_nodes_1)
+        print(remove_nodes_2)
+        
         # compute next/best solutions in neighborhoods
         # TODO: also recompute the trees without changing any key nodes (best improvement)
         
@@ -198,37 +213,45 @@ def vnd(g : Graph, s : Solution, v : int):
         if new_s is not None and new_v < value:
             current = new_s
             value = new_v
+            print("NH_1_a")
             continue
         
         new_s, new_v = compute_add_keynode_next_neighbor(g, dg_2, add_nodes_2[0], current, 2, value)
         if new_s is not None and new_v < value:
             current = new_s
             value = new_v
+            print("NH_1_b")
             continue
         
         new_s, new_v = compute_remove_keynode_best_neighbor(g, dg_1, remove_nodes_1, current, 1, value)
         if new_s is not None and new_v < value:
             current = new_s
             value = new_v
+            print("NH_2_a")
             continue
             
         new_s, new_v = compute_remove_keynode_best_neighbor(g, dg_2, remove_nodes_2, current, 2, value)
         if new_s is not None and new_v < value:
             current = new_s
             value = new_v
+            print("NH_2_b")
             continue
         
         new_s, new_v = compute_add_keynode_next_neighbor(g, dg_1, add_nodes_1[1], current, 1, value)
         if new_s is not None and new_v < value:
             current = new_s
             value = new_v
+            print("NH_3_a")
             continue
         
         new_s, new_v = compute_add_keynode_next_neighbor(g, dg_2, add_nodes_2[1], current, 2, value)
         if new_s is not None and new_v < value:
             current = new_s
             value = new_v
+            print("NH_3_b")
             continue
+        
+        break
             
 
 def task1(g : Graph):
