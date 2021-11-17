@@ -30,13 +30,9 @@ class Graph:
         edges = []
         self.terminal_1 = []
         self.terminal_2 = []
-        edges_1 = []
-        edges_2 = []
         for line in lines:
             if line[0] == "E":
                 edges.append((int(line[1]), int(line[2]), int(line[3])))  # collects edges out of the file with weight
-                edges_1.append((int(line[1]), int(line[2]), self.alpha_1 * int(line[3])))
-                edges_2.append((int(line[1]), int(line[2]), self.alpha_2 * int(line[3])))
             if line[0] == "T1":
                 self.terminal_1.append(int(line[1]))  # collects the Terminals1 out of file
             if line[0] == "T2":
@@ -45,34 +41,15 @@ class Graph:
         self.graph.add_nodes_from(vertices)
         self.graph.add_weighted_edges_from(edges)
 
-        self.graph_shortest_paths = dict(nx.algorithms.shortest_paths.all_pairs_dijkstra(self.graph))
+        for n1,n2,d in self.graph.edges.data():
+            d["weight_1"] = self.alpha_1 * d["weight"]
+            d["weight_2"] = self.alpha_2 * d["weight"]
+        
+        #self.graph_shortest_paths = dict(nx.algorithms.shortest_paths.all_pairs_dijkstra(self.graph))
         # returns a dict of tuple of dict with each pair, Unfortunately this dict is ordered a bit weirdly as the first element in the dict is the source node.
         # The elements in the tuple then are 0 for the length and 1 for the path, The elements in the final dict are the target node
         # takes 26 seconds for the longest instance thus is very expensive but it decreases the length of construct distance graph to almost 0.
 
-        g1 = nx.Graph()
-        g1.add_nodes_from(vertices)
-        g1.add_weighted_edges_from(edges_1)
-        self.g1 = g1
-
-        g2 = nx.Graph()
-        g2.add_nodes_from(vertices)
-        g2.add_weighted_edges_from(edges_2)
-        self.g2 = g2
-
-        gsp1 = deepcopy(
-            self.graph_shortest_paths)  # the graphs and dict with 1 have the weights for 1 they are therefore used for calculating the ST for terminal nodes2
-        gsp2 = deepcopy(self.graph_shortest_paths)  # uses a_2
-        self.init_weights_in_dict(gsp1, self.alpha_1)
-        self.init_weights_in_dict(gsp2, self.alpha_2)
-        self.gsp1 = gsp1
-        self.gsp2 = gsp2
-        # the copying process takes about 10s per instance in total thus 20s much faster than just calculating everything from scratch again
-
-    def init_weights_in_dict(self, shortest_path_dict, alpha):
-        for key1 in shortest_path_dict:
-            for key2 in shortest_path_dict[key1][0]:
-                shortest_path_dict[key1][0][key2] *= alpha
 
     def adjust_weights_in_dict_and_graph(self, graph: nx.Graph, shortest_path_dict: dict, previous_key_edges: list,
                                          new_key_edges: list, alpha, gamma):
@@ -271,6 +248,41 @@ if __name__ == "__main__":
     g.load_graph_from_file("1331.txt")
     end = time.time()
     print(f"loading runtime: {end - start}")
+    
+    """
+    start = time.time()
+    data = nx.get_edge_attributes(g.g1, "weight")
+    end = time.time()
+    print(data)
+    print(f"test: {end - start}")
+    
+    data2 = deepcopy(data)
+    start = time.time()
+    nx.set_edge_attributes(g.g1, data2, "weight_modified")
+    end = time.time()
+    print(f"test: {end - start}")
+    
+    start = time.time()
+    nx.set_edge_attributes(g.g1, data2, "weight_modified")
+    for i in g.terminal_1:
+        for j in g.terminal_1:
+            length, path = nx.single_source_dijkstra(g.g1, i, j)
+    end = time.time()
+    print(f"test: {end - start}")
+    
+    
+    data1 = nx.get_edge_attributes(g.g1, "weight")
+    data2 = nx.get_edge_attributes(g.g1, "weight")
+    
+    print(data1[(1260, 1315)])
+    print(data2[(1260, 1315)])
+    
+    data2[(1260, 1315)] -= 2
+    
+    print(data1[(1260, 1315)])
+    print(data2[(1260, 1315)])
+    """
+    
     # test_4(g)
     # test_1()
     # test_2()
