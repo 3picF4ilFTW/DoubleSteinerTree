@@ -85,7 +85,6 @@ def rebuild_steiner_tree(g : Graph, dg : nx.Graph, tree : int):
         mst.remove_nodes_from(to_remove)
     
     # translate distance graph edges to original graph edges and compute sum over undiscounted weights
-    # (TODO: could be changed to collect discounted weights and then correct based on shared edges --> slightly faster)    
     for (n1,n2) in mst.edges():
         last_n = None
         for n in dg.get_edge_data(n1,n2)["path"]:
@@ -95,9 +94,19 @@ def rebuild_steiner_tree(g : Graph, dg : nx.Graph, tree : int):
             edges.add((last_n, n))
             total_weight += g.graph.get_edge_data(last_n, n)[f"weight_{tree}"]
             last_n = n
+
+
+    # We could have introduced key-nodes which are not in the MST! Therefore, we have to recompute the key-nodes!
+    node_degree = {}
+    for n1,n2 in edges:
+        if n1 not in node_degree:
+            node_degree[n1] = 0
+        if n2 not in node_degree:
+            node_degree[n2] = 0
+        node_degree[n1] += 1
+        node_degree[n2] += 1
     
-    # TODO: we could have introduced key-nodes which are not in the MST!!!
-    return edges, total_weight, [n for n in mst.nodes if mst.degree(n) >= 3 and n not in terminals]
+    return edges, total_weight, [n for n, d in node_degree.items() if d >= 3 and n not in terminals]
 
 
 def compute_shared_edges(g : Graph, s : Solution):
@@ -110,6 +119,9 @@ def compute_shared_edges(g : Graph, s : Solution):
 
 def compute_add_keynode_next_neighbor(g : Graph, dg : Graph, ns : [int], s : Solution, tree : int, value : int):
     for n in ns:
+        if dg.has_node(n):
+            continue
+    
         # augment distance graph with next node
         augment_distance_graph(g, dg, n, f"weight_{tree}_mod")
         
@@ -124,6 +136,7 @@ def compute_add_keynode_next_neighbor(g : Graph, dg : Graph, ns : [int], s : Sol
         # TODO: We should now eliminate a potential cycle between T1 and T2...
         # e.g. if we just computed T1, remove redundant edges in T2
         # this would make the new solution more acceptable
+        # However, this is only viable if gamma < 0
 
         # evaluate new solution and return if it is better
         compute_shared_edges(g, new_s)
@@ -158,6 +171,7 @@ def compute_remove_keynode_best_neighbor(g : Graph, dg : Graph, ns : [int], s : 
         # TODO: We should now eliminate a potential cycle between T1 and T2...
         # e.g. if we just computed T1, remove redundant edges in T2
         # this would make the new solution more acceptable
+        # However, this is only viable if gamma < 0
 
         # evaluate new solution and store if it is better
         compute_shared_edges(g, new_s)
