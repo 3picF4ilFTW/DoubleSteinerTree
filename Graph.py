@@ -2,6 +2,7 @@ import networkx as nx
 import time
 import numpy as np
 import matplotlib.pyplot as plt
+import utils
 from copy import deepcopy
 
 
@@ -32,7 +33,7 @@ class Graph:
         self.terminal_2 = []
         for line in lines:
             if line[0] == "E":
-                edges.append((int(line[1]), int(line[2]), int(line[3])))  # collects edges out of the file with weight
+                edges.append(utils.ordered_edge_weighted(int(line[1]), int(line[2]), int(line[3])))  # collects edges out of the file with weight
             if line[0] == "T1":
                 self.terminal_1.append(int(line[1]))  # collects the Terminals1 out of file
             if line[0] == "T2":

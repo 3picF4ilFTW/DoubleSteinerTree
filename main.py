@@ -3,6 +3,7 @@ import time
 import itertools
 from copy import copy
 import networkx as nx
+import utils
 from Graph import Graph
 from Solution import Solution
 
@@ -18,9 +19,12 @@ def main():
     graph.load_graph_from_file(input)
     
     start = time.process_time()
-    task1(graph)
+    s = task1(graph)
     end = time.process_time()
     print(f"Running time for task1 was: {end - start}")
+    
+    output = input.replace(".txt", "_solution.txt")
+    s.write_solution_to_file(graph, output)
 
 
 def construction_heuristic(g : Graph):
@@ -42,7 +46,7 @@ def construction_heuristic(g : Graph):
     compute_shared_edges(g, s)
     
     return s
-    
+
 
 def distance_graph(g : Graph, ns : [int], weight : str):
     graph = nx.Graph()
@@ -66,7 +70,6 @@ def augment_distance_graph(g : Graph, dg : nx.Graph, n : int, weight : str):
 
 def rebuild_steiner_tree(g : Graph, dg : nx.Graph, tree : int):
     mst = nx.algorithms.tree.mst.minimum_spanning_tree(dg, weight=f"weight_{tree}_mod")
-    total_weight = 0
     
     edges = set()
     
@@ -84,20 +87,21 @@ def rebuild_steiner_tree(g : Graph, dg : nx.Graph, tree : int):
         
         mst.remove_nodes_from(to_remove)
     
-    # translate distance graph edges to original graph edges and compute sum over undiscounted weights
+    # translate distance graph edges to original graph edges
     for (n1,n2) in mst.edges():
         last_n = None
         for n in dg.get_edge_data(n1,n2)["path"]:
             if last_n is None:
                 last_n = n
                 continue
-            edges.add((last_n, n))
-            total_weight += g.graph.get_edge_data(last_n, n)[f"weight_{tree}"]
+            edges.add(utils.ordered_edge(last_n, n))
             last_n = n
 
 
     # We could have introduced key-nodes which are not in the MST! Therefore, we have to recompute the key-nodes!
+    # Also compute the weight of the new tree.
     node_degree = {}
+    total_weight = 0
     for n1,n2 in edges:
         if n1 not in node_degree:
             node_degree[n1] = 0
@@ -105,6 +109,8 @@ def rebuild_steiner_tree(g : Graph, dg : nx.Graph, tree : int):
             node_degree[n2] = 0
         node_degree[n1] += 1
         node_degree[n2] += 1
+        
+        total_weight += g.graph.get_edge_data(n1, n2)[f"weight_{tree}"]
     
     return edges, total_weight, [n for n, d in node_degree.items() if d >= 3 and n not in terminals]
 
@@ -112,6 +118,7 @@ def rebuild_steiner_tree(g : Graph, dg : nx.Graph, tree : int):
 def compute_shared_edges(g : Graph, s : Solution):
     s.weight_s = 0
     shared_edges = s.edges_1.intersection(s.edges_2)
+    
     for e in shared_edges:
         s.weight_s += g.graph.get_edge_data(*e)["weight"]
     s.weight_s *= g.gamma
@@ -124,10 +131,10 @@ def compute_add_keynode_next_neighbor(g : Graph, dg : Graph, ns : [int], s : Sol
     
         # augment distance graph with next node
         augment_distance_graph(g, dg, n, f"weight_{tree}_mod")
-        
+    
         # use new distance graph to build steiner tree and create new solution
         edges, weight, key_nodes = rebuild_steiner_tree(g, dg, tree)
-
+            
         new_s = copy(s)
         
         setattr(new_s, f"edges_{tree}", edges)
@@ -144,7 +151,7 @@ def compute_add_keynode_next_neighbor(g : Graph, dg : Graph, ns : [int], s : Sol
         
         if new_value < value:
             setattr(new_s, f"key_nodes_{tree}", key_nodes)
-            return new_s, value        
+            return new_s, new_value
         
         # reset the distance graph
         dg.remove_node(n)
@@ -266,13 +273,15 @@ def vnd(g : Graph, s : Solution, v : int):
             continue
         
         break
+        
+    return current
             
 
 def task1(g : Graph):
     init = construction_heuristic(g)
     init_value = init.evaluate()
     
-    vnd(g, init, init_value)
+    return vnd(g, init, init_value)
     
 
 if __name__ == "__main__":

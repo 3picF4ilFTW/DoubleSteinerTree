@@ -1,3 +1,4 @@
+from Graph import Graph
 
 class Solution:
     def __init__(self):
@@ -39,3 +40,15 @@ class Solution:
         
         return s
     
+    def write_solution_to_file(self, g : Graph, file : str):
+        f = open(file, "w")
+        
+        f.write(f"S {g.abs_V} {g.abs_E} {g.abs_T_1} {g.abs_T_2}")
+        
+        for n1, n2 in self.edges_1:
+            f.write(f"S1 {n1} {n2}")
+            
+        for n1, n2 in self.edges_2:
+            f.write(f"S2 {n1} {n2}")
+        
+        f.close()
