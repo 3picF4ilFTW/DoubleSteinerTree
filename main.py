@@ -229,6 +229,8 @@ def vnd(g : Graph, s : Solution, v : int):
         
         # compute next/best solutions in neighborhoods
         # TODO: also recompute the trees without changing any key nodes (best improvement)
+        #new_s, new_v = compute_tree_adapt_neighbor(g, dg_1 if last_tree == 1 else dg_2, current, 3 - last_tree, value)
+        #if...
         
         new_s, new_v = compute_add_keynode_next_neighbor(g, dg_1, add_nodes_1[0], current, 1, value)
         if new_s is not None and new_v < value:
@@ -271,6 +273,8 @@ def vnd(g : Graph, s : Solution, v : int):
             value = new_v
             print("NH_3_b")
             continue
+        
+        #TODO: Choose best from all and call compute_tree_adapt_neighbor(...)
         
         break
         
