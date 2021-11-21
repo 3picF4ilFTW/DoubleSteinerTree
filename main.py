@@ -89,7 +89,7 @@ def randomized_greedy_steiner_tree(g: Graph, weight, terminal_nodes, alpha = 0.5
                 for w in w_dict:
                     edges0[w] = []
             for w in w_dict:
-                edges0[w].append((left,right,w_dict[w]))
+                edges0[w].append((left,right,w_dict[weight]))
     for w in edges0:
         steiner_tree.add_weighted_edges_from(edges0[w],weight)
 
@@ -104,7 +104,6 @@ def construction_heuristic(g : Graph, alpha = 0):
 
     st_1 = randomized_greedy_steiner_tree(g, "weight_1", g.terminal_1, alpha = alpha)
     st_2 = randomized_greedy_steiner_tree(g, "weight_2", g.terminal_2, alpha = alpha)
-
 
     #st_1 = nx.algorithms.approximation.steinertree.steiner_tree(g.graph, g.terminal_1, "weight_1")
     #st_2 = nx.algorithms.approximation.steinertree.steiner_tree(g.graph, g.terminal_2, "weight_2")
