@@ -6,33 +6,108 @@ import networkx as nx
 import utils
 from Graph import Graph
 from Solution import Solution
+import random
 
 
 def main():
     if len(sys.argv) < 2:
-        print("Please provide an input file!")
+        print("Please provide an input file! For now take the 0011.txt file")
+        input = "0011.txt"
         exit()
-    
-    input = sys.argv[1]
+
+    else:
+        input = sys.argv[1]
     print(f"Loading input graph from {input}...")
     graph = Graph()
     graph.load_graph_from_file(input)
     
-    start = time.process_time()
-    s = task1(graph)
-    end = time.process_time()
-    print(f"Running time for task1 was: {end - start}")
+    start1 = time.process_time()
+    s1 = task1(graph)
+    end1 = time.process_time()
+    print(f"Running time for task1 was: {end1 - start1}")
+    start2 = time.process_time()
+    s2 = task2(graph)
+    end2 = time.process_time()
+    print(f"Running time for task1 was: {end1 - start1}")
+    print(f"Best solution was {s1.evaluate()}")
+    print(f"Running time for task2 was: {end2 - start2}")
+    print(f"Best solution was {s2.evaluate()}")
     
     output = input.replace(".txt", "_solution.txt")
-    s.write_solution_to_file(graph, output)
+
+    s2.write_solution_to_file(graph, output)
+
+def random_path(g: Graph, source, target, weight, cutoff):
+    itr = nx.all_simple_paths(g.graph, source, target, cutoff)#cutoff is the search depth not the weight of the graph
+    path = next(itr)
+    length = nx.classes.path_weight(g.graph, path, weight)
+    return path, length
+
+#TODO maybe also implement this for now implement GRASP
+"""def random_mst(g:nx.Graph, beta): #g should be a distance graph beta is the value an edge can be worse than the best edge in the DG
+    possible_nodes = {}
+    lst = []
+    for s,t in itertools.combinations(g.nodes,2):
+        possible_nodes[s] = {}
+        possible_nodes[s][t] = g[s][t]["weight"]
+        lst.append((g[s][t]["weight"],s,t))
+    lst.sort()
+    None"""
+
+def randomized_greedy_steiner_tree(g: Graph, weight, terminal_nodes, alpha = 0.5):#alpha gives the factor how much more nodes the choosen path can have than the shortest path
+    pair_shortest_paths = {}
+    for s, t in itertools.combinations(terminal_nodes, 2):
+        length, path = nx.algorithms.shortest_paths.weighted.bidirectional_dijkstra(g.graph, s, t, weight)
+        pair_shortest_paths[(s, t)] = (length, path)
+
+    simple_paths = {}
+    edges_for_adding = []
+    nodes_for_adding = set()
+    for s, t in itertools.combinations(terminal_nodes, 2):
+        path, length = random_path(g, s, t, weight, cutoff = len(pair_shortest_paths[(s,t)][1])*(1+alpha))
+        simple_paths[(s,t)] = (length,path)
+        edges_for_adding.append((s,t,length))
+        for p in path:
+            nodes_for_adding.add(p)
+
+    dg = nx.Graph()
+    dg.add_nodes_from(terminal_nodes)
+    dg.add_weighted_edges_from(edges_for_adding)
+
+    mst = nx.algorithms.minimum_spanning_tree(dg)
+    steiner_tree = nx.Graph()
+    steiner_tree.add_nodes_from(nodes_for_adding)
+
+    edges0 = {}
+    for edge in mst.edges:
+        for i in range(len(simple_paths[edge][1])-1):
+            left = simple_paths[edge][1][i]
+            right = simple_paths[edge][1][i+1]
+            e = (left,right)
+            w_dict = g.graph.get_edge_data(*e)
+            if edges0 == {}:
+                for w in w_dict:
+                    edges0[w] = []
+            for w in w_dict:
+                edges0[w].append((left,right,w_dict[w]))
+    for w in edges0:
+        steiner_tree.add_weighted_edges_from(edges0[w],weight)
 
 
-def construction_heuristic(g : Graph):
+    return steiner_tree
+
+
+
+def construction_heuristic(g : Graph, alpha = 0):
     s = Solution()
-    
-    # TODO: we need to replace this with our own construction heuristic!
-    st_1 = nx.algorithms.approximation.steinertree.steiner_tree(g.graph, g.terminal_1, "weight_1")
-    st_2 = nx.algorithms.approximation.steinertree.steiner_tree(g.graph, g.terminal_2, "weight_2")
+
+
+    st_1 = randomized_greedy_steiner_tree(g, "weight_1", g.terminal_1, alpha = alpha)
+    st_2 = randomized_greedy_steiner_tree(g, "weight_2", g.terminal_2, alpha = alpha)
+
+
+    #st_1 = nx.algorithms.approximation.steinertree.steiner_tree(g.graph, g.terminal_1, "weight_1")
+    #st_2 = nx.algorithms.approximation.steinertree.steiner_tree(g.graph, g.terminal_2, "weight_2")
     
     s.key_nodes_1 = [n for n in st_1.nodes if st_1.degree(n) >= 3 and n not in g.terminal_1]
     s.key_nodes_2 = [n for n in st_2.nodes if st_2.degree(n) >= 3 and n not in g.terminal_2]
@@ -72,7 +147,8 @@ def rebuild_steiner_tree(g : Graph, dg : nx.Graph, tree : int):
     mst = nx.algorithms.tree.mst.minimum_spanning_tree(dg, weight=f"weight_{tree}_mod")
     
     edges = set()
-    
+    #TODO in this update of weights somewhere a mistake happens.
+
     # remove unnecessary nodes
     terminals = getattr(g, f"terminal_{tree}")
     changed = True
@@ -192,12 +268,13 @@ def compute_remove_keynode_best_neighbor(g : Graph, dg : Graph, ns : [int], s : 
     return best_solution, best_value
     
 
-def vnd(g : Graph, s : Solution, v : int):
+def vnd(g : Graph, s : Solution, v : int, verbose = 0):
     current = s
     value = v
     
     while True:
-        print(f"New best solution:\n{current}")
+        if verbose == 2:
+            print(f"New best solution:\n{current}")
 
         start = time.process_time()        
         # discount edges that are already used
@@ -212,7 +289,8 @@ def vnd(g : Graph, s : Solution, v : int):
         dg_2 = distance_graph(g, nodes_2, "weight_2_mod")
         
         end = time.process_time()
-        print(f"Computed modified distance graphs in: {end-start}")
+        if verbose == 2:
+            print(f"Computed modified distance graphs in: {end-start}")
         
         # define nodes to add
         add_nodes = [i for i in range(0, g.abs_V) if i not in nodes_1 and i not in nodes_2]
@@ -221,11 +299,12 @@ def vnd(g : Graph, s : Solution, v : int):
         
         remove_nodes_1 = current.key_nodes_1
         remove_nodes_2 = current.key_nodes_2
-        
-        print(add_nodes_1)
-        print(add_nodes_2)
-        print(remove_nodes_1)
-        print(remove_nodes_2)
+
+        if verbose == 2:
+            print(add_nodes_1)
+            print(add_nodes_2)
+            print(remove_nodes_1)
+            print(remove_nodes_2)
         
         # compute next/best solutions in neighborhoods
         # TODO: also recompute the trees without changing any key nodes (best improvement)
@@ -236,42 +315,48 @@ def vnd(g : Graph, s : Solution, v : int):
         if new_s is not None and new_v < value:
             current = new_s
             value = new_v
-            print("NH_1_a")
+            if verbose == 2:
+                print("NH_1_a")
             continue
         
         new_s, new_v = compute_add_keynode_next_neighbor(g, dg_2, add_nodes_2[0], current, 2, value)
         if new_s is not None and new_v < value:
             current = new_s
             value = new_v
-            print("NH_1_b")
+            if verbose == 2:
+                print("NH_1_b")
             continue
         
         new_s, new_v = compute_remove_keynode_best_neighbor(g, dg_1, remove_nodes_1, current, 1, value)
         if new_s is not None and new_v < value:
             current = new_s
             value = new_v
-            print("NH_2_a")
+            if verbose == 2:
+                print("NH_2_a")
             continue
             
         new_s, new_v = compute_remove_keynode_best_neighbor(g, dg_2, remove_nodes_2, current, 2, value)
         if new_s is not None and new_v < value:
             current = new_s
             value = new_v
-            print("NH_2_b")
+            if verbose == 2:
+                print("NH_2_b")
             continue
         
         new_s, new_v = compute_add_keynode_next_neighbor(g, dg_1, add_nodes_1[1], current, 1, value)
         if new_s is not None and new_v < value:
             current = new_s
             value = new_v
-            print("NH_3_a")
+            if verbose == 2:
+                print("NH_3_a")
             continue
         
         new_s, new_v = compute_add_keynode_next_neighbor(g, dg_2, add_nodes_2[1], current, 2, value)
         if new_s is not None and new_v < value:
             current = new_s
             value = new_v
-            print("NH_3_b")
+            if verbose == 2:
+                print("NH_3_b")
             continue
         
         #TODO: Choose best from all and call compute_tree_adapt_neighbor(...)
@@ -280,13 +365,40 @@ def vnd(g : Graph, s : Solution, v : int):
         
     return current
             
+def grasp(g : Graph, s : Solution, v : int, max_running_time = 15, verbose = 0):
+    current = s
+    best = s
+    init_value = v
+    v_best = v
+    start = time.time()
+    alpha = 0
+    while True:
+        current = vnd(g, current, init_value, verbose)
+        v_new = current.evaluate()
+        if v_new < v_best:
+            best = current
+            v_best = v_new
+
+        alpha += 0.1
+        init = construction_heuristic(g,alpha)
+        init_value = init.evaluate()
+
+        end = time.time()
+        if end-start > max_running_time:
+            break
+
+    return best
 
 def task1(g : Graph):
     init = construction_heuristic(g)
     init_value = init.evaluate()
-    
-    return vnd(g, init, init_value)
-    
+    return vnd(g, init, init_value, verbose = 2)
+
+def task2(g : Graph):
+    random.seed(123)
+    init = construction_heuristic(g)
+    init_value = init.evaluate()
+    return grasp(g, init, init_value, verbose = 2)
 
 if __name__ == "__main__":
     main()
