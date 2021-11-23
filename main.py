@@ -237,6 +237,7 @@ def rebuild_steiner_tree(g : Graph, dg : nx.Graph, tree : int):
         total_weight += g.graph.get_edge_data(n1, n2)[f"weight_{tree}"]
     
     # TODO: nodes could have degree 1 so we need another trim step :/
+    # TODO: solution could have cycles... we have to elminiate them
     
     return edges, total_weight, [n for n, d in node_degree.items() if d >= 3 and n not in terminals]
 
@@ -418,7 +419,7 @@ def grasp(g : Graph, alpha = 0.5, max_running_time = 15, verbose = 0):
     start = time.process_time()
     running_time = 0
     while running_time < max_running_time:
-        current = construction_heuristic(g, alpha)
+        current = construction_heuristic(g, if best is None 0 else alpha)
         value = current.evaluate()
         
         if verbose == 2:
