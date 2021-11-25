@@ -388,10 +388,7 @@ def compute_add_keynode_next_neighbor(g : Graph, dg : Graph, ns : [int], s : Sol
         setattr(new_s, f"edges_{tree}", edges)
         setattr(new_s, f"weight_{tree}", weight)
 
-        # TODO: We should now eliminate a potential cycle between T1 and T2...
-        # e.g. if we just computed T1, remove redundant edges in T2
-        # this would make the new solution more acceptable
-        # However, this is only viable if gamma < 0
+
 
         # evaluate new solution and return if it is better
         compute_shared_edges(g, new_s)
@@ -423,10 +420,7 @@ def compute_remove_keynode_best_neighbor(g : Graph, dg : Graph, ns : [int], s : 
         setattr(new_s, f"edges_{tree}", edges)
         setattr(new_s, f"weight_{tree}", weight)
 
-        # TODO: We should now eliminate a potential cycle between T1 and T2...
-        # e.g. if we just computed T1, remove redundant edges in T2
-        # this would make the new solution more acceptable
-        # However, this is only viable if gamma < 0
+        
 
         # evaluate new solution and store if it is better
         compute_shared_edges(g, new_s)
