@@ -35,25 +35,25 @@ def main():
     s2, time2 = task2(graph, alpha, limit, method="mst")
     end2 = time.process_time()
 
-    start3 = time.process_time()
-    s3, time3 = task2(graph, alpha, limit, method="path")
-    end3 = time.process_time()
+    #start3 = time.process_time()
+    #s3, time3 = task2(graph, alpha, limit, method="path")
+    #end3 = time.process_time()
     
     print(f"Running time for task1 was: {end1 - start1}")
     print(f"Best solution was {s1.evaluate()}")
     print(f"Running time for task2 mst was: {end2 - start2}")
     print(f"Best solution was {s2.evaluate()}")
-    print(f"Running time for task2 path was: {end3 - start3}")
-    print(f"Best solution was {s3.evaluate()}")
+    #print(f"Running time for task2 path was: {end3 - start3}")
+    #print(f"Best solution was {s3.evaluate()}")
     
     output1 = input.replace(".txt", "_vnd.txt")
     output2 = input.replace(".txt", "_mst_grasp.txt")
-    output3 = input.replace(".txt", "_path_grasp.txt")
+    #output3 = input.replace(".txt", "_path_grasp.txt")
     outputlog = input.replace(".txt", "_log.txt")
 
     s1.write_solution_to_file(graph, output1)
     s2.write_solution_to_file(graph, output2)
-    s3.write_solution_to_file(graph, output3)
+    #s3.write_solution_to_file(graph, output3)
     
     f = open(outputlog, "w")
     f.write(f"Log for instance {input}.\n\n")
@@ -64,8 +64,8 @@ def main():
     f.write(f"GRASP with mst used alpha={alpha} and took {end2-start2} seconds. The best instance was found after {time2} seconds.\n")
     f.write(f"{s2}\n\n")
 
-    f.write(f"GRASP with path used alpha={alpha} and took {end3 - start3} seconds. The best instance was found after {time3} seconds.\n")
-    f.write(f"{s3}")
+    #f.write(f"GRASP with path used alpha={alpha} and took {end3 - start3} seconds. The best instance was found after {time3} seconds.\n")
+    #f.write(f"{s3}")
     
 def runall_with_grid(alpha_grid = [0.05,0.1,0.2,0.4,0.7,0.95]):
     files = ["0125.txt", "1331.txt"]
@@ -360,7 +360,7 @@ def rebuild_steiner_tree(g : Graph, dg : nx.Graph, tree : int):
         total_weight += g.graph.get_edge_data(n1, n2)[f"weight_{tree}"]
 
 
-    return edges, total_weight, [n for n, d in node_degree.items() if d >= 3 and n not in terminals]
+    return set(st_mst.edges), total_weight, [n for n, d in node_degree.items() if d >= 3 and n not in terminals]
 
 
 def compute_shared_edges(g : Graph, s : Solution):
