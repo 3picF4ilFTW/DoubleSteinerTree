@@ -466,17 +466,17 @@ def vnd(g : Graph, s : Solution, v : int, verbose = 0):
         start = time.process_time()        
         # discount edges that are already used
         for n1,n2,d in g.graph.edges.data():
-            if last_tree != 2:
+            if dg_1 is None:
                 d["weight_1_mod"] = (d["weight_1"] + g.gamma) if (n1,n2) in current.edges_2 else d["weight_1"]
-            if last_tree != 1:
+            if dg_2 is None:
                 d["weight_2_mod"] = (d["weight_2"] + g.gamma) if (n1,n2) in current.edges_1 else d["weight_2"]
 
         # compute the distance graph cores
         nodes_1 = g.terminal_1 + s.key_nodes_1
         nodes_2 = g.terminal_2 + s.key_nodes_2
-        if last_tree != 2:
+        if dg_1 is None:
             dg_1 = distance_graph(g, nodes_1, "weight_1_mod")
-        if last_tree != 1:
+        if dg_2 is None:
             dg_2 = distance_graph(g, nodes_2, "weight_2_mod")
         
         end = time.process_time()
@@ -491,7 +491,7 @@ def vnd(g : Graph, s : Solution, v : int, verbose = 0):
                 value = new_v
                 last_tree = 3 - last_tree
                 if verbose == 2:
-                    print("Recomp")
+                    print("Recomp start")
                 continue
 
         # define nodes to add/remove
@@ -502,65 +502,132 @@ def vnd(g : Graph, s : Solution, v : int, verbose = 0):
         remove_nodes_1 = current.key_nodes_1
         remove_nodes_2 = current.key_nodes_2
         
+        # intermediate solution for 2 stage adapt
+        best_s_i = None
+        best_v_i = None
+        best_tree = None
+        
         # compute next/best solutions in neighborhoods
         # we start with the add-keynode neighborhood on add_nodes[0]
         new_s, new_v = compute_add_keynode_next_neighbor(g, dg_1, add_nodes_1[0], current, 1, value)
-        if new_s is not None and new_v < value:
-            current = new_s
-            value = new_v
-            last_tree = 1
-            if verbose == 2:
-                print("NH_1_a")
-            continue
-        
+        if new_s is not None:
+            if new_v < value:
+                current = new_s
+                value = new_v
+                last_tree = 1
+                dg_2 = None
+                if verbose == 2:
+                    print("NH_1_a")
+                continue
+            elif best_v_i is None or best_v_i > new_v:
+                best_s_i = new_s
+                best_v_i = new_v
+                best_tree = 1
+            
         new_s, new_v = compute_add_keynode_next_neighbor(g, dg_2, add_nodes_2[0], current, 2, value)
-        if new_s is not None and new_v < value:
-            current = new_s
-            value = new_v
-            last_tree = 2
-            if verbose == 2:
-                print("NH_1_b")
-            continue
-        
+        if new_s is not None:
+            if new_v < value:
+                current = new_s
+                value = new_v
+                last_tree = 2
+                dg_1 = None
+                if verbose == 2:
+                    print("NH_1_b")
+                continue
+            elif best_v_i is None or best_v_i > new_v:
+                best_s_i = new_s
+                best_v_i = new_v
+                best_tree = 2
+            
         # if nothing is found, move on to the remove-keynode neighborhood
         new_s, new_v = compute_remove_keynode_best_neighbor(g, dg_1, remove_nodes_1, current, 1, value)
-        if new_s is not None and new_v < value:
-            current = new_s
-            value = new_v
-            last_tree = 1
-            if verbose == 2:
-                print("NH_2_a")
-            continue
-            
+        if new_s is not None:
+            if new_v < value:
+                current = new_s
+                value = new_v
+                last_tree = 1
+                dg_2 = None
+                if verbose == 2:
+                    print("NH_2_a")
+                continue
+            elif best_v_i is None or best_v_i > new_v:
+                best_s_i = new_s
+                best_v_i = new_v
+                best_tree = 1
+                
         new_s, new_v = compute_remove_keynode_best_neighbor(g, dg_2, remove_nodes_2, current, 2, value)
-        if new_s is not None and new_v < value:
-            current = new_s
-            value = new_v
-            last_tree = 2
-            if verbose == 2:
-                print("NH_2_b")
-            continue
+        if new_s is not None:
+            if new_v < value:
+                current = new_s
+                value = new_v
+                last_tree = 2
+                dg_1 = None
+                if verbose == 2:
+                    print("NH_2_b")
+                continue
+            elif best_v_i is None or best_v_i > new_v:
+                best_s_i = new_s
+                best_v_i = new_v
+                best_tree = 2
         
         # if still nothing is found, retry with add-keynode neighborhood on add_nodes[1]
         new_s, new_v = compute_add_keynode_next_neighbor(g, dg_1, add_nodes_1[1], current, 1, value)
-        if new_s is not None and new_v < value:
-            current = new_s
-            value = new_v
-            last_tree = 1
-            if verbose == 2:
-                print("NH_3_a")
-            continue
-        
+        if new_s is not None:
+            if new_v < value:
+                current = new_s
+                value = new_v
+                last_tree = 1
+                dg_2 = None
+                if verbose == 2:
+                    print("NH_3_a")
+                continue
+            elif best_v_i is None or best_v_i > new_v:
+                best_s_i = new_s
+                best_v_i = new_v
+                best_tree = 1
+            
         new_s, new_v = compute_add_keynode_next_neighbor(g, dg_2, add_nodes_2[1], current, 2, value)
-        if new_s is not None and new_v < value:
-            current = new_s
-            value = new_v
-            last_tree = 2
-            if verbose == 2:
-                print("NH_3_b")
-            continue
+        if new_s is not None:
+            if new_v < value:
+                current = new_s
+                value = new_v
+                last_tree = 2
+                dg_1 = None
+                if verbose == 2:
+                    print("NH_3_b")
+                continue
+            elif best_v_i is None or best_v_i > new_v:
+                best_s_i = new_s
+                best_v_i = new_v
+                best_tree = 2
         
-        #TODO: Maybe choose best from all and call recompute_subtree(...) on the unchanged tree
+        # now choose best_s and recompute unchanged tree as a last attempt to improve
+        if best_s_i is not None:
+            for n1,n2,d in g.graph.edges.data():
+                if best_tree == 2:
+                    d["weight_1_mod"] = (d["weight_1"] + g.gamma) if (n1,n2) in current.edges_2 else d["weight_1"]
+                if best_tree == 1:
+                    d["weight_2_mod"] = (d["weight_2"] + g.gamma) if (n1,n2) in current.edges_1 else d["weight_2"]
+
+            if best_tree == 2:
+                dg_1 = distance_graph(g, nodes_1, "weight_1_mod")
+            if best_tree == 1:
+                dg_2 = distance_graph(g, nodes_2, "weight_2_mod")
+            
+            new_s, new_v = recompute_subtree(g, dg_2 if best_tree == 1 else dg_1, current, 3 - best_tree)
+            if new_v < value:
+                current = new_s
+                value = new_v
+                
+                last_tree = 3 - best_tree
+                if last_tree == 1:
+                    dg_2 = None
+                if last_tree == 2:
+                    dg_1 = None
+
+                if verbose == 2:
+                    print("Recomp end")
+                continue
         
         break
         
