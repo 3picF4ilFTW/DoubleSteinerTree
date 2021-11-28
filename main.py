@@ -375,7 +375,10 @@ def compute_shared_edges(g : Graph, s : Solution):
     s.weight_s *= g.gamma
 
 
-def compute_add_keynode_next_neighbor(g : Graph, dg : Graph, ns : [int], s : Solution, tree : int, value : int):
+def compute_add_keynode_best_neighbor(g : Graph, dg : Graph, ns : [int], s : Solution, tree : int, value : int):
+    best_solution = None
+    best_value = None
+
     for n in ns:
         if dg.has_node(n):
             continue
@@ -395,19 +398,20 @@ def compute_add_keynode_next_neighbor(g : Graph, dg : Graph, ns : [int], s : Sol
         compute_shared_edges(g, new_s)
         new_value = new_s.evaluate()
         
-        if new_value < value:
+        if best_value is None or new_value < best_value:
             setattr(new_s, f"key_nodes_{tree}", key_nodes)
-            return new_s, new_value
+            best_value = new_value
+            best_solution = new_s
         
         # reset the distance graph
         dg.remove_node(n)
     
-    return None, None
+    return best_solution, best_value
     
     
 def compute_remove_keynode_best_neighbor(g : Graph, dg : Graph, ns : [int], s : Solution, tree : int, value : int):
     best_solution = None
-    best_value = value
+    best_value = None
 
     for n in ns:
         # create subgraph_view not containing n
@@ -425,7 +429,7 @@ def compute_remove_keynode_best_neighbor(g : Graph, dg : Graph, ns : [int], s : 
         compute_shared_edges(g, new_s)
         new_value = new_s.evaluate()
         
-        if new_value < best_value:
+        if best_value is None or new_value < best_value:
             setattr(new_s, f"key_nodes_{tree}", key_nodes)
             best_value = new_value
             best_solution = new_s
@@ -509,7 +513,7 @@ def vnd(g : Graph, s : Solution, v : int, verbose = 0):
         
         # compute next/best solutions in neighborhoods
         # we start with the add-keynode neighborhood on add_nodes[0]
-        new_s, new_v = compute_add_keynode_next_neighbor(g, dg_1, add_nodes_1[0], current, 1, value)
+        new_s, new_v = compute_add_keynode_best_neighbor(g, dg_1, add_nodes_1[0], current, 1, value)
         if new_s is not None:
             if new_v < value:
                 current = new_s
@@ -524,7 +528,7 @@ def vnd(g : Graph, s : Solution, v : int, verbose = 0):
                 best_v_i = new_v
                 best_tree = 1
             
-        new_s, new_v = compute_add_keynode_next_neighbor(g, dg_2, add_nodes_2[0], current, 2, value)
+        new_s, new_v = compute_add_keynode_best_neighbor(g, dg_2, add_nodes_2[0], current, 2, value)
         if new_s is not None:
             if new_v < value:
                 current = new_s
@@ -571,7 +575,7 @@ def vnd(g : Graph, s : Solution, v : int, verbose = 0):
                 best_tree = 2
         
         # if still nothing is found, retry with add-keynode neighborhood on add_nodes[1]
-        new_s, new_v = compute_add_keynode_next_neighbor(g, dg_1, add_nodes_1[1], current, 1, value)
+        new_s, new_v = compute_add_keynode_best_neighbor(g, dg_1, add_nodes_1[1], current, 1, value)
         if new_s is not None:
             if new_v < value:
                 current = new_s
@@ -586,7 +590,7 @@ def vnd(g : Graph, s : Solution, v : int, verbose = 0):
                 best_v_i = new_v
                 best_tree = 1
             
-        new_s, new_v = compute_add_keynode_next_neighbor(g, dg_2, add_nodes_2[1], current, 2, value)
+        new_s, new_v = compute_add_keynode_best_neighbor(g, dg_2, add_nodes_2[1], current, 2, value)
         if new_s is not None:
             if new_v < value:
                 current = new_s
