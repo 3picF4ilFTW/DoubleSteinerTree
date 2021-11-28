@@ -23,6 +23,9 @@ def main():
         input = sys.argv[1]
         alpha = float(sys.argv[2])
         limit = float(sys.argv[3])
+        
+    random.seed(1234)
+    
     print(f"Loading input graph from {input}...")
     graph = Graph()
     graph.load_graph_from_file(input)
@@ -388,8 +391,6 @@ def compute_add_keynode_next_neighbor(g : Graph, dg : Graph, ns : [int], s : Sol
         setattr(new_s, f"edges_{tree}", edges)
         setattr(new_s, f"weight_{tree}", weight)
 
-
-
         # evaluate new solution and return if it is better
         compute_shared_edges(g, new_s)
         new_value = new_s.evaluate()
@@ -420,8 +421,6 @@ def compute_remove_keynode_best_neighbor(g : Graph, dg : Graph, ns : [int], s : 
         setattr(new_s, f"edges_{tree}", edges)
         setattr(new_s, f"weight_{tree}", weight)
 
-        
-
         # evaluate new solution and store if it is better
         compute_shared_edges(g, new_s)
         new_value = new_s.evaluate()
@@ -432,11 +431,33 @@ def compute_remove_keynode_best_neighbor(g : Graph, dg : Graph, ns : [int], s : 
             best_solution = new_s
         
     return best_solution, best_value
+
+
+def recompute_subtree(g : Graph, dg : Graph, s : Solution, tree : int):
+    edges, weight, key_nodes = rebuild_steiner_tree(g, dg, tree)
+
+    new_s = copy(s)
+    
+    setattr(new_s, f"edges_{tree}", edges)
+    setattr(new_s, f"weight_{tree}", weight)
+    
+    # evaluate new solution and return if it is better
+    compute_shared_edges(g, new_s)
+    new_value = new_s.evaluate()
+    
+    setattr(new_s, f"key_nodes_{tree}", key_nodes)
+    return new_s, new_value
     
 
 def vnd(g : Graph, s : Solution, v : int, verbose = 0):
     current = s
     value = v
+    
+    last_tree = None
+    nodes_1 = None
+    nodes_2 = None
+    dg_1 = None
+    dg_2 = None
     
     while True:
         if verbose == 2:
@@ -445,36 +466,49 @@ def vnd(g : Graph, s : Solution, v : int, verbose = 0):
         start = time.process_time()        
         # discount edges that are already used
         for n1,n2,d in g.graph.edges.data():
-            d["weight_1_mod"] = (d["weight_1"] + g.gamma) if (n1,n2) in current.edges_2 else d["weight_1"]
-            d["weight_2_mod"] = (d["weight_2"] + g.gamma) if (n1,n2) in current.edges_1 else d["weight_2"]
+            if last_tree != 2:
+                d["weight_1_mod"] = (d["weight_1"] + g.gamma) if (n1,n2) in current.edges_2 else d["weight_1"]
+            if last_tree != 1:
+                d["weight_2_mod"] = (d["weight_2"] + g.gamma) if (n1,n2) in current.edges_1 else d["weight_2"]
 
         # compute the distance graph cores
         nodes_1 = g.terminal_1 + s.key_nodes_1
         nodes_2 = g.terminal_2 + s.key_nodes_2
-        dg_1 = distance_graph(g, nodes_1, "weight_1_mod")
-        dg_2 = distance_graph(g, nodes_2, "weight_2_mod")
+        if last_tree != 2:
+            dg_1 = distance_graph(g, nodes_1, "weight_1_mod")
+        if last_tree != 1:
+            dg_2 = distance_graph(g, nodes_2, "weight_2_mod")
         
         end = time.process_time()
         if verbose == 2:
             print(f"Computed modified distance graphs in: {end-start}")
         
-        # define nodes to add
+        # first, we try to recompute the unchanged tree
+        if last_tree is not None:
+            new_s, new_v = recompute_subtree(g, dg_2 if last_tree == 1 else dg_1, current, 3 - last_tree)
+            if new_v < value:
+                current = new_s
+                value = new_v
+                last_tree = 3 - last_tree
+                if verbose == 2:
+                    print("Recomp")
+                continue
+
+        # define nodes to add/remove
         add_nodes = [i for i in range(0, g.abs_V) if i not in nodes_1 and i not in nodes_2]
         add_nodes_1 = [nodes_2, add_nodes]
         add_nodes_2 = [nodes_1, add_nodes]
         
         remove_nodes_1 = current.key_nodes_1
         remove_nodes_2 = current.key_nodes_2
-
-        # compute next/best solutions in neighborhoods
-        # TODO: also recompute the trees without changing any key nodes (best improvement)
-        #new_s, new_v = compute_tree_adapt_neighbor(g, dg_1 if last_tree == 1 else dg_2, current, 3 - last_tree, value)
-        #if...
         
+        # compute next/best solutions in neighborhoods
+        # we start with the add-keynode neighborhood on add_nodes[0]
         new_s, new_v = compute_add_keynode_next_neighbor(g, dg_1, add_nodes_1[0], current, 1, value)
         if new_s is not None and new_v < value:
             current = new_s
             value = new_v
+            last_tree = 1
             if verbose == 2:
                 print("NH_1_a")
             continue
@@ -483,14 +517,17 @@ def vnd(g : Graph, s : Solution, v : int, verbose = 0):
         if new_s is not None and new_v < value:
             current = new_s
             value = new_v
+            last_tree = 2
             if verbose == 2:
                 print("NH_1_b")
             continue
         
+        # if nothing is found, move on to the remove-keynode neighborhood
         new_s, new_v = compute_remove_keynode_best_neighbor(g, dg_1, remove_nodes_1, current, 1, value)
         if new_s is not None and new_v < value:
             current = new_s
             value = new_v
+            last_tree = 1
             if verbose == 2:
                 print("NH_2_a")
             continue
@@ -499,14 +536,17 @@ def vnd(g : Graph, s : Solution, v : int, verbose = 0):
         if new_s is not None and new_v < value:
             current = new_s
             value = new_v
+            last_tree = 2
             if verbose == 2:
                 print("NH_2_b")
             continue
         
+        # if still nothing is found, retry with add-keynode neighborhood on add_nodes[1]
         new_s, new_v = compute_add_keynode_next_neighbor(g, dg_1, add_nodes_1[1], current, 1, value)
         if new_s is not None and new_v < value:
             current = new_s
             value = new_v
+            last_tree = 1
             if verbose == 2:
                 print("NH_3_a")
             continue
@@ -515,11 +555,12 @@ def vnd(g : Graph, s : Solution, v : int, verbose = 0):
         if new_s is not None and new_v < value:
             current = new_s
             value = new_v
+            last_tree = 2
             if verbose == 2:
                 print("NH_3_b")
             continue
         
-        #TODO: Choose best from all and call compute_tree_adapt_neighbor(...)
+        #TODO: Maybe choose best from all and call recompute_subtree(...) on the unchanged tree
         
         break
         
