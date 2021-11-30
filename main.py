@@ -127,6 +127,7 @@ def run_with_grid(input, limit, alpha_grid):
     best_s.write_solution_to_file(graph, output)
     return best_method, best_alpha, best_s
 
+
 def randomized_mst(dg : nx.Graph, alpha : float):
     key = lambda e: dg.get_edge_data(*e)["weight"]
     
@@ -164,15 +165,26 @@ def randomized_mst(dg : nx.Graph, alpha : float):
 
 
 def randomized_steiner_tree(g : Graph, tree : int, alpha : float):
-    dg = distance_graph(g, getattr(g, f"terminal_{tree}"), f"weight_{tree}")
-    mst = randomized_mst(dg, alpha)
+    nodes = getattr(g, f"terminal_{tree}").copy()
 
+    alpha_mod = alpha
+    while alpha_mod > 0.0:
+        r = random.random()
+        if r <= alpha_mod:
+            n = random.randrange(0, g.abs_V)
+            if n not in nodes:
+                nodes.append(n)
+                alpha_mod *= 0.5
+        else:
+            break            
+    
+    dg = distance_graph(g, nodes, f"weight_{tree}")
+    mst = randomized_mst(dg, alpha)
 
     terminal = getattr(g, f"terminal_{tree}")
     for t in terminal:
         if not t in mst.nodes:
             print("\n\n\nnot in terminal\n\n\n")
-
 
     edges, weight, terminals = rebuild_steiner_tree(g, mst, tree)
     return edges, weight, terminals
@@ -192,6 +204,7 @@ def random_path(g: Graph, source, target, weight, cutoff):
     path = random.choice(path_lst)
     length = nx.classes.path_weight(g.graph, path, weight)
     return path, length
+
 
 def randomized_greedy_steiner_tree(g: Graph, weight, terminal_nodes, alpha = 0.5):#alpha gives the factor how much more nodes the choosen path can have than the shortest path
     pair_shortest_paths = {}
@@ -407,7 +420,37 @@ def compute_add_keynode_best_neighbor(g : Graph, dg : Graph, ns : [int], s : Sol
         dg.remove_node(n)
     
     return best_solution, best_value
+
+
+def compute_add_keynode_next_neighbor(g : Graph, dg : Graph, ns : [int], s : Solution, tree : int, value : int):
+    for n in ns:
+        if dg.has_node(n):
+            continue
     
+        # augment distance graph with next node
+        augment_distance_graph(g, dg, n, f"weight_{tree}_mod")
+    
+        # use new distance graph to build steiner tree and create new solution
+        edges, weight, key_nodes = rebuild_steiner_tree(g, dg, tree)
+            
+        new_s = copy(s)
+        
+        setattr(new_s, f"edges_{tree}", edges)
+        setattr(new_s, f"weight_{tree}", weight)
+
+        # evaluate new solution and return if it is better
+        compute_shared_edges(g, new_s)
+        new_value = new_s.evaluate()
+        
+        if new_value < value:
+            setattr(new_s, f"key_nodes_{tree}", key_nodes)
+            return new_s, new_value
+        
+        # reset the distance graph
+        dg.remove_node(n)
+    
+    return None, None
+     
     
 def compute_remove_keynode_best_neighbor(g : Graph, dg : Graph, ns : [int], s : Solution, tree : int, value : int):
     best_solution = None
@@ -507,13 +550,15 @@ def vnd(g : Graph, s : Solution, v : int, verbose = 0):
         remove_nodes_2 = current.key_nodes_2
         
         # intermediate solution for 2 stage adapt
+        """
         best_s_i = None
         best_v_i = None
         best_tree = None
+        """
         
         # compute next/best solutions in neighborhoods
         # we start with the add-keynode neighborhood on add_nodes[0]
-        new_s, new_v = compute_add_keynode_best_neighbor(g, dg_1, add_nodes_1[0], current, 1, value)
+        new_s, new_v = compute_add_keynode_next_neighbor(g, dg_1, add_nodes_1[0], current, 1, value)
         if new_s is not None:
             if new_v < value:
                 current = new_s
@@ -523,12 +568,14 @@ def vnd(g : Graph, s : Solution, v : int, verbose = 0):
                 if verbose == 2:
                     print("NH_1_a")
                 continue
+            """
             elif best_v_i is None or best_v_i > new_v:
                 best_s_i = new_s
                 best_v_i = new_v
                 best_tree = 1
+            """
             
-        new_s, new_v = compute_add_keynode_best_neighbor(g, dg_2, add_nodes_2[0], current, 2, value)
+        new_s, new_v = compute_add_keynode_next_neighbor(g, dg_2, add_nodes_2[0], current, 2, value)
         if new_s is not None:
             if new_v < value:
                 current = new_s
@@ -538,10 +585,12 @@ def vnd(g : Graph, s : Solution, v : int, verbose = 0):
                 if verbose == 2:
                     print("NH_1_b")
                 continue
+            """
             elif best_v_i is None or best_v_i > new_v:
                 best_s_i = new_s
                 best_v_i = new_v
                 best_tree = 2
+            """
             
         # if nothing is found, move on to the remove-keynode neighborhood
         new_s, new_v = compute_remove_keynode_best_neighbor(g, dg_1, remove_nodes_1, current, 1, value)
@@ -554,11 +603,13 @@ def vnd(g : Graph, s : Solution, v : int, verbose = 0):
                 if verbose == 2:
                     print("NH_2_a")
                 continue
+            """
             elif best_v_i is None or best_v_i > new_v:
                 best_s_i = new_s
                 best_v_i = new_v
                 best_tree = 1
-                
+            """
+            
         new_s, new_v = compute_remove_keynode_best_neighbor(g, dg_2, remove_nodes_2, current, 2, value)
         if new_s is not None:
             if new_v < value:
@@ -569,13 +620,15 @@ def vnd(g : Graph, s : Solution, v : int, verbose = 0):
                 if verbose == 2:
                     print("NH_2_b")
                 continue
+            """
             elif best_v_i is None or best_v_i > new_v:
                 best_s_i = new_s
                 best_v_i = new_v
                 best_tree = 2
-        
+            """
+            
         # if still nothing is found, retry with add-keynode neighborhood on add_nodes[1]
-        new_s, new_v = compute_add_keynode_best_neighbor(g, dg_1, add_nodes_1[1], current, 1, value)
+        new_s, new_v = compute_add_keynode_next_neighbor(g, dg_1, add_nodes_1[1], current, 1, value)
         if new_s is not None:
             if new_v < value:
                 current = new_s
@@ -585,12 +638,14 @@ def vnd(g : Graph, s : Solution, v : int, verbose = 0):
                 if verbose == 2:
                     print("NH_3_a")
                 continue
+            """
             elif best_v_i is None or best_v_i > new_v:
                 best_s_i = new_s
                 best_v_i = new_v
                 best_tree = 1
+            """
             
-        new_s, new_v = compute_add_keynode_best_neighbor(g, dg_2, add_nodes_2[1], current, 2, value)
+        new_s, new_v = compute_add_keynode_next_neighbor(g, dg_2, add_nodes_2[1], current, 2, value)
         if new_s is not None:
             if new_v < value:
                 current = new_s
@@ -600,12 +655,15 @@ def vnd(g : Graph, s : Solution, v : int, verbose = 0):
                 if verbose == 2:
                     print("NH_3_b")
                 continue
+            """
             elif best_v_i is None or best_v_i > new_v:
                 best_s_i = new_s
                 best_v_i = new_v
                 best_tree = 2
-        
+            """
+            
         # now choose best_s and recompute unchanged tree as a last attempt to improve
+        """
         if best_s_i is not None:
             for n1,n2,d in g.graph.edges.data():
                 if best_tree == 2:
@@ -632,6 +690,7 @@ def vnd(g : Graph, s : Solution, v : int, verbose = 0):
                 if verbose == 2:
                     print("Recomp end")
                 continue
+        """
         
         break
         

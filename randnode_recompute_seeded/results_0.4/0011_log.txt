@@ -1,0 +1,16 @@
+Log for instance 0011.txt.
+
+VND used alpha=0 and took 0.015625 seconds.
+K1: []
+E1: {(2, 7), (4, 5), (1, 7), (5, 10), (6, 10), (1, 6)}
+K2: []
+E2: {(3, 8), (5, 10), (8, 10), (0, 5)}
+Obj: 12 + 12 + -2 = 22
+
+GRASP with mst used alpha=0.4 and took 900.0 seconds. The best instance was found after 0.015625 seconds.
+K1: [7]
+E1: {(2, 7), (7, 10), (4, 5), (1, 7), (5, 10)}
+K2: []
+E2: {(3, 8), (5, 10), (8, 10), (0, 5)}
+Obj: 10 + 12 + -2 = 20
+
