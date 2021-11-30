@@ -168,15 +168,19 @@ def randomized_steiner_tree(g : Graph, tree : int, alpha : float):
     nodes = getattr(g, f"terminal_{tree}").copy()
 
     alpha_mod = alpha
+    #while alpha_mod > 0.0 and len(nodes) < g.abs_V:
     while alpha_mod > 0.0:
         r = random.random()
         if r <= alpha_mod:
-            n = random.randrange(0, g.abs_V)
-            if n not in nodes:
-                nodes.append(n)
-                alpha_mod *= 0.5
+            #while True:
+                n = random.randrange(0, g.abs_V)
+                if n not in nodes:
+                    nodes.append(n)
+                    alpha_mod *= 0.5
+                    #alpha_mod *= 0.9
+                    #break
         else:
-            break            
+            break
     
     dg = distance_graph(g, nodes, f"weight_{tree}")
     mst = randomized_mst(dg, alpha)
@@ -365,6 +369,7 @@ def rebuild_steiner_tree(g : Graph, dg : nx.Graph, tree : int):
     # Also compute the weight of the new tree.
     node_degree = {}
     total_weight = 0
+    edges = set()
     for n1, n2 in st_mst.edges:
         if n1 not in node_degree:
             node_degree[n1] = 0
@@ -374,9 +379,11 @@ def rebuild_steiner_tree(g : Graph, dg : nx.Graph, tree : int):
         node_degree[n2] += 1
 
         total_weight += g.graph.get_edge_data(n1, n2)[f"weight_{tree}"]
+        
+        edges.add(utils.ordered_edge(n1,n2))
 
 
-    return set(st_mst.edges), total_weight, [n for n, d in node_degree.items() if d >= 3 and n not in terminals]
+    return edges, total_weight, [n for n, d in node_degree.items() if d >= 3 and n not in terminals]
 
 
 def compute_shared_edges(g : Graph, s : Solution):
